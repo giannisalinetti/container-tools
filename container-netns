@@ -1,0 +1,106 @@
+#!/bin/bash
+
+#  Name: container-netns
+#  Version: 1.0
+#  Author: Gianni Salinetti
+#  Date: 20170527
+#
+#  Tool to create symlink on /var/run/netns and expose
+#  container network namespaces.
+# 
+#  Exposed namespaces can be manipulated with the command
+#  ip netns exec <UUID> <command>
+
+
+# Create updated symlinks for running containers
+createNsAll() 
+{
+    rm -rf /var/run/netns/* 2> /dev/null
+    for uuid in $(docker inspect -f '{{.Id}}' $(docker ps -q))
+    do
+        pid=$(docker inspect -f '{{.State.Pid}}' $uuid)
+        if [ ! -L /var/run/netns/$uuid ]
+        then
+            ln -sf /proc/$pid/ns/net /var/run/netns/$uuid
+        fi
+        echo "Created new namespace for container $uuid"
+    done
+}
+
+# Create namespace view for specified container
+createNsUuid() 
+{
+    # Test lenght of argument to accept only uuids
+    if [ -n "$1" ] && [ $(echo -n "$1" | wc -c) -eq 64 ]
+    then
+      uuid="$1"
+    else
+      echo "Argument has not a correct container UUID lenght"
+      exit 1 
+    fi
+
+
+    pid=$(docker inspect -f '{{.State.Pid}}' "$uuid")
+    if [ ! -L /var/run/netns/$uuid ]
+    then
+        ln -sf /proc/$pid/ns/net /var/run/netns/$uuid
+    fi
+    echo "Created new namespace for container $uuid"
+}
+
+# Clean all the netns symlinks
+cleanNsAll()
+{
+    rm -rf /var/run/netns/* 2> /dev/null
+}
+
+# Usage function
+usage()
+{
+    echo "Usage: $(basename $0) create all"
+    echo "  Create network namespaces for all running containers"
+    echo "Usage: $(basename $0) create <UUID>"
+    echo "  Create network namespaces for container with the specified UUID"
+    echo "Usage: $(basename $0) clean all"
+    echo "  Delete all exposed namespaces from /var/run/netns"
+}
+
+# Test arguments
+if [ "$#" -eq 0 ]
+then
+    echo 'Wrong argument selection'
+    usage
+    exit 1
+fi
+
+# Print usage
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]
+then
+    usage
+    exit 0
+fi
+
+
+# Create /var/run/netns directory if not exits
+if [ ! -d /var/run/netns ]
+then
+    mkdir /var/run/netns
+fi
+
+# Execute functions
+if [ "$1" == "create" ] && [ "$2" == "all" ]
+then
+    createNsAll
+    exit 0
+elif [ "$1" == "create" ] && [ $2 != 'all' ]
+then
+        createNsUuid "$2"
+        exit 0
+elif [ "$1" == "clean" ] && [ "$2" == "all" ]
+    then
+        cleanNsAll
+        exit 0
+fi
+
+exit 0
+
