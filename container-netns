@@ -65,10 +65,17 @@ usage()
     echo "  Delete all exposed namespaces from /var/run/netns"
 }
 
+# Test if root user
+if [ "$UID" -ne 0 ]
+then
+    echo 'Error: Permission denied. Root user or sudo needed to expose namespaces.'
+    exit 1
+fi
+
 # Test arguments
 if [ "$#" -eq 0 ]
 then
-    echo 'Wrong argument selection'
+    echo 'Error: Wrong argument selection'
     usage
     exit 1
 fi
